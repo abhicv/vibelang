@@ -18,11 +18,18 @@ A statically-typed programming language that compiles to custom VM bytecode.
 
 ## Installation
 
-No external dependencies required! VibeLang uses only Python standard library.
+### Prerequisites
+- **Python 3.8+**: Required for the compiler and VM.
+- **C Compiler (Optional)**: Required for the C backend (native compilation).
+  - **Windows**: [Visual Studio Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/) (MSVC) is recommended.
+  - **Linux/macOS**: `gcc` or `clang`.
 
-```bash
-cd c:\Development\ML\vibe-code\vibelang
-```
+### Setup
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/abhicv/vibelang.git
+   cd vibelang
+   ```
 
 ## Usage
 
@@ -52,11 +59,16 @@ gcc -o factorial output.c
 python main.py -r
 ```
 
-### Debug mode
+### Tests & Automation
+
+VibeLang includes a test runner that automatically manages build artifacts.
 
 ```bash
-python main.py -d examples/fibonacci.vibe
+# Run all integration tests
+python test_runner.py
 ```
+> [!NOTE]
+> Testing artifacts are automatically placed in a `build/` directory and cleaned up after execution.
 
 ## Language Syntax
 
@@ -244,13 +256,13 @@ Source Code → Lexer → Tokens → Parser → AST → Type Checker → Typed A
 
 ### Components
 
-- **Lexer** (`lexer.py`): Tokenizes source code
-- **Parser** (`parser.py`): Builds Abstract Syntax Tree
-- **Type Checker** (`type_checker.py`): Validates types and semantics
-- **Code Generator** (`codegen.py`): Generates VM bytecode
-- **C Code Generator** (`codegen_c.py`): Generates C code
-- **Virtual Machine** (`vm.py`): Executes bytecode
-- **Compiler** (`compiler.py`): Orchestrates the pipeline
+- **Lexer** ([src/lexer.py](file:///c:/Development/ML/vibe-code/vibelang/src/lexer.py)): Tokenizes source code
+- **Parser** ([src/parser.py](file:///c:/Development/ML/vibe-code/vibelang/src/parser.py)): Builds Abstract Syntax Tree
+- **Type Checker** ([src/type_checker.py](file:///c:/Development/ML/vibe-code/vibelang/src/type_checker.py)): Validates types and semantics
+- **Code Generator** ([src/codegen.py](file:///c:/Development/ML/vibe-code/vibelang/src/codegen.py)): Generates VM bytecode
+- **C Code Generator** ([src/codegen_c.py](file:///c:/Development/ML/vibe-code/vibelang/src/codegen_c.py)): Generates C code
+- **Virtual Machine** ([src/vm.py](file:///c:/Development/ML/vibe-code/vibelang/src/vm.py)): Executes bytecode
+- **Compiler** ([src/compiler.py](file:///c:/Development/ML/vibe-code/vibelang/src/compiler.py)): Orchestrates the pipeline
 
 ### VM Instruction Set
 
