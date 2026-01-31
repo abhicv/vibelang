@@ -1,5 +1,9 @@
 # VibeLang
 
+> [!NOTE]
+> **Disclaimer**: This project was fully generated using **Antigravity**.
+
+
 A statically-typed programming language that compiles to custom VM bytecode.
 
 ## Features
@@ -282,25 +286,19 @@ Error at line 5, column 12: Cannot assign float to variable of type int
 
 ```
 vibelang/
-├── main.py           # CLI entry point
-├── compiler.py       # Compiler driver
-├── lexer.py          # Lexical analyzer
-├── parser.py         # Parser
-├── ast_nodes.py      # AST node definitions
-├── type_system.py    # Type definitions
-├── type_checker.py   # Type checker
-├── bytecode.py       # Bytecode definitions
-├── codegen.py        # Code generator (VM bytecode)
-├── codegen_c.py      # Code generator (C code)
-├── vm.py             # Virtual machine
-├── errors.py         # Error handling
-├── examples/         # Example programs
-│   ├── hello.vibe
-│   ├── factorial.vibe
-│   ├── fibonacci.vibe
-│   ├── arrays.vibe
-│   └── types.vibe
-└── README.md         # This file
+├── src/                # Core compiler & VM source files
+│   ├── __init__.py
+│   ├── ast_nodes.py
+│   ├── compiler.py
+│   ├── vm.py
+│   └── ...
+├── examples/           # VibeLang example programs
+├── tests/              # Unit tests
+├── main.py             # Main CLI entry point
+├── test_runner.py      # Integration test runner
+├── run_tests.py        # Unit test runner
+├── vibe_compile.bat    # MSVC build helper script
+└── README.md           # Documentation
 ```
 
 ## Future Enhancements
