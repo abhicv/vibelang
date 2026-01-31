@@ -1,0 +1,20 @@
+fn main() -> int {
+    let numbers: [int] = [1, 2, 3];
+    print("Initial array: [1, 2, 3]");
+    
+    print("Pushing 4...");
+    numbers.push(4);
+    print("Length after push:");
+    print(len(numbers));
+    
+    print("Popping element:");
+    let last = numbers.pop();
+    print(last);
+    
+    print("Final array length:");
+    print(len(numbers));
+    
+    return 0;
+}
+
+main();

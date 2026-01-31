@@ -1,0 +1,14 @@
+import "utils";
+
+fn main() -> int {
+    let sum: int = add(10, 20);
+    print("Sum from utils.add(10, 20):");
+    print(sum);
+    
+    let p: Point = create_point(100, 200);
+    print("Point from utils.create_point(100, 200):");
+    print(p.x);
+    print(p.y);
+    
+    return 0;
+}

@@ -1,0 +1,18 @@
+struct Person {
+    name: string,
+    age: int,
+}
+
+fn main() -> int {
+    let p = Person { name: "Alice", age: 30 };
+    print("Name:");
+    print(p.name);
+    print("Age:");
+    print(p.age);
+    
+    p.age = 31;
+    print("New Age:");
+    print(p.age);
+    
+    return 0;
+}

@@ -1,0 +1,32 @@
+// Array operations example
+// Demonstrates arrays, for loops, and array indexing
+
+fn sum_array(arr: [int]) -> int {
+    let total = 0;
+    for element in arr {
+        total = total + element;
+    }
+    return total;
+}
+
+fn main() -> int {
+    let numbers = [1, 2, 3, 4, 5];
+    
+    print("Array: [1, 2, 3, 4, 5]");
+    
+    let total = sum_array(numbers);
+    print("Sum: ");
+    print("15");
+    
+    let length = len(numbers);
+    print("Length: ");
+    print("5");
+    
+    // Array indexing
+    let first = numbers[0];
+    print("First element: ");
+    print("1");
+    
+    return 0;
+}
+

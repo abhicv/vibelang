@@ -1,0 +1,55 @@
+struct Node {
+    value: int,
+    left: Node,
+    right: Node,
+}
+
+fn create_node(val: int) -> Node {
+    return Node {
+        value: val,
+        left: null,
+        right: null,
+    };
+}
+
+fn insert_into_tree(root: Node, val: int) -> Node {
+    if root == null {
+        return create_node(val);
+    }
+    
+    if val < root.value {
+        root.left = insert_into_tree(root.left, val);
+    } else {
+        root.right = insert_into_tree(root.right, val);
+    }
+    return root;
+}
+
+fn print_inorder(root: Node) -> void {
+    if root == null {
+        return;
+    }
+    print_inorder(root.left);
+    print(root.value);
+    print_inorder(root.right);
+}
+
+fn main() -> int {
+    let tree: Node = null;
+    
+    print("Inserting: 5, 3, 8, 1, 4, 7, 9");
+    tree = insert_into_tree(tree, 5);
+    tree = insert_into_tree(tree, 3);
+    tree = insert_into_tree(tree, 8);
+    tree = insert_into_tree(tree, 1);
+    tree = insert_into_tree(tree, 4);
+    tree = insert_into_tree(tree, 7);
+    tree = insert_into_tree(tree, 9);
+    
+    print("In-order traversal:");
+    print_inorder(tree);
+    
+    return 0;
+}
+
+main();

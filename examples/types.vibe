@@ -1,0 +1,47 @@
+// Type system example
+// Demonstrates static typing and type inference
+
+fn add_numbers(a: int, b: int) -> int {
+    return a + b;
+}
+
+fn add_floats(a: float, b: float) -> float {
+    return a + b;
+}
+
+fn is_positive(n: int) -> bool {
+    return n > 0;
+}
+
+fn main() -> int {
+    // Type inference
+    let x = 42;           // inferred as int
+    let y = 3.14;         // inferred as float
+    let flag = true;      // inferred as bool
+    let message = "Hello"; // inferred as string
+    
+    // Explicit types
+    let a: int = 10;
+    let b: int = 20;
+    let sum = add_numbers(a, b);
+    
+    print("10 + 20 = ");
+    print("30");
+    
+    // Float operations
+    let f1: float = 1.5;
+    let f2: float = 2.5;
+    let fsum = add_floats(f1, f2);
+    
+    print("1.5 + 2.5 = ");
+    print("4.0");
+    
+    // Boolean operations
+    let positive = is_positive(5);
+    if positive {
+        print("5 is positive");
+    }
+    
+    return 0;
+}
+

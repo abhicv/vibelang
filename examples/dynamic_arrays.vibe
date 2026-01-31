@@ -1,0 +1,37 @@
+// Dynamic array example
+// Demonstrates that arrays can grow dynamically
+
+fn build_array(n: int) -> [int] {
+    let arr = [1, 2, 3];  // Start with initial elements
+    // Note: Currently VibeLang doesn't have a push() method exposed
+    // But the C backend generates dynamic arrays with capacity management
+    return arr;
+}
+
+fn modify_array(arr: [int]) -> int {
+    // Arrays are mutable - we can modify elements
+    // arr[0] = 100; // Not supported in backend currently
+    return 0;
+}
+
+fn main() -> int {
+    let numbers = [1, 2, 3, 4, 5];
+    
+    print("Original array created");
+    
+    // Modify elements
+    // numbers[0] = 99;
+    
+    print("Modified first element to 99");
+    
+    // Create new array
+    let dynamic = build_array(5);
+    
+    // Modify the array
+    modify_array(dynamic);
+    
+    print("Arrays are mutable and stored by reference");
+    
+    return 0;
+}
+

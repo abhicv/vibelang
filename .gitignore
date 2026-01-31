@@ -1,0 +1,17 @@
+# Build artifacts
+build/
+*.exe
+*.obj
+*.pdb
+*.ilk
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Generated files
+examples/*_test.c
+examples/*.exe
+examples/*.obj

@@ -1,0 +1,18 @@
+fn main() -> int {
+    let c = 'A';
+    print("Character c is:");
+    print(c);
+    
+    let s = "VibeLang";
+    print("First char of VibeLang is:");
+    let first = s[0];
+    print(first);
+    
+    if first == 'V' {
+        print("Matches 'V'!");
+    } else {
+        print("Does not match 'V'");
+    }
+    
+    return 0;
+}

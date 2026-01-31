@@ -1,0 +1,8 @@
+import "utils.vibe";
+
+fn main() -> int {
+    let sum: int = add(50, 50);
+    print("Sum from utils.add(50, 50):");
+    print(sum);
+    return 0;
+}

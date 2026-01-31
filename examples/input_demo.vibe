@@ -1,0 +1,12 @@
+fn main() -> int {
+    print("What is your name?");
+    let name = read_str();
+    print("Hello, " + name + "!");
+    
+    print("Enter a number to double:");
+    let n = read_int();
+    print("Double is:");
+    print(n * 2);
+    
+    return 0;
+}

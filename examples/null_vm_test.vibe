@@ -1,0 +1,18 @@
+fn main() -> int {
+    let a: [int] = null;
+    if a == null {
+        print("a is null");
+    } else {
+        print("a is not null");
+    }
+    
+    a = [1, 2, 3];
+    if a == null {
+        print("a is null after assignment");
+    } else {
+        print("a is not null after assignment");
+    }
+    return 0;
+}
+
+main();

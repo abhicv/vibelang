@@ -1,0 +1,10 @@
+import "utils_vm";
+
+fn main() -> int {
+    let res: int = multiply(7, 6);
+    print("7 * 6 from utils_vm.multiply:");
+    print(res);
+    return 0;
+}
+
+main();
