@@ -1,0 +1,33 @@
+fn get_coordinates() -> (int, int) {
+    return 10, 20;
+}
+
+fn get_names() -> (string, string) {
+    return "Vibe", "Lang";
+}
+
+fn open_file(path: string) -> (int, bool) {
+    return 0, true;
+}   
+
+fn main() -> int {
+    let x, y = get_coordinates();
+    print("Coordinates:");
+    print(x);
+    print(y);
+    
+    //let first, second: (string, string) = get_names();
+    let first, second = get_names();
+
+    print("Names:");
+    print(first);
+    print(second);
+
+    let file, success = open_file("test.txt");
+    print(file);
+    print(success);
+
+    return 0;
+}
+
+main();

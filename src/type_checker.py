@@ -53,6 +53,9 @@ class TypeChecker:
         self.symbol_table.define('len', FunctionType([ArrayType(IntType())], IntType()))
         self.symbol_table.define('read_str', FunctionType([], StringType()))
         self.symbol_table.define('read_int', FunctionType([], IntType()))
+        self.symbol_table.define('ord', FunctionType([CharType()], IntType()))
+        self.symbol_table.define('chr', FunctionType([IntType()], CharType()))
+        self.symbol_table.define('str', FunctionType([CharType()], StringType()))
         
         self.module_resolver = None  # Set by Compiler
         self.current_file = "<unknown>"
@@ -161,35 +164,48 @@ class TypeChecker:
     
     def check_variable_declaration(self, node: VariableDeclaration):
         """Type check variable declaration."""
-        # Check initializer type
-        initializer_type = None
-        if node.initializer:
-            # Pass type hint if available
-            expected_type = self.get_type_from_annotation(node.type_annotation) if node.type_annotation else None
-            initializer_type = self.check_expression(node.initializer, expected_type)
-        
-        # Determine variable type
+        # Determine explicit type if provided
+        explicit_type = None
         if node.type_annotation:
-            var_type = self.get_type_from_annotation(node.type_annotation)
-            
-            # Check type compatibility with initializer
-            if initializer_type and not can_coerce(initializer_type, var_type):
-                raise VibeLangTypeError(
-                    f"Cannot assign {initializer_type} to variable of type {var_type}",
-                    node.line, node.column
-                )
-        else:
-            # Type inference
-            if not initializer_type:
-                raise VibeLangTypeError(
-                    f"Variable '{node.name}' requires type annotation or initializer",
-                    node.line, node.column
-                )
-            var_type = initializer_type
+            explicit_type = self.get_type_from_annotation(node.type_annotation)
         
-        # Define variable in symbol table
-        self.symbol_table.define(node.name, var_type)
-        node.type = var_type
+        # Check initializer
+        init_type = None
+        if node.initializer:
+            init_type = self.check_expression(node.initializer, expected_type=explicit_type)
+            
+            if explicit_type:
+                if not can_coerce(init_type, explicit_type):
+                    raise VibeLangTypeError(
+                        f"Cannot assign {init_type} to {explicit_type}",
+                        node.line, node.column
+                    )
+            else:
+                # Infer type
+                if isinstance(init_type, VoidType):
+                     raise VibeLangTypeError("Cannot assign void to variable", node.line, node.column)
+                explicit_type = init_type
+        
+        if explicit_type is None:
+             raise VibeLangTypeError("Variable declaration must have type annotation or initializer", node.line, node.column)
+             
+        # Handle destructuring or single variable
+        if len(node.names) == 1:
+             self.symbol_table.define(node.names[0], explicit_type)
+        else:
+            # Destructuring: Expecting MultiType
+            if not isinstance(explicit_type, MultiType):
+                raise VibeLangTypeError(f"Destructuring requires tuple type, got {explicit_type}", node.line, node.column)
+            
+            if len(explicit_type.types) != len(node.names):
+                 raise VibeLangTypeError(
+                    f"Destructuring mismatch: expected {len(node.names)} values, got {len(explicit_type.types)}",
+                    node.line, node.column
+                 )
+            
+            for name, type_ in zip(node.names, explicit_type.types):
+                self.symbol_table.define(name, type_)
+        node.type = explicit_type # Assuming var_type was meant to be explicit_type
     
     def check_function_declaration(self, node: FunctionDeclaration):
         """Type check function declaration."""
@@ -263,7 +279,10 @@ class TypeChecker:
             t = ArrayType(element_type)
         elif annotation.type_name == 'void':
             t = VoidType()
-        elif annotation.type_name in self.struct_types:
+        elif annotation.type_name == 'tuple':
+            types = [self.get_type_from_annotation(t) for t in annotation.types]
+            return MultiType(types)
+        elif annotation.type_name in self.struct_types: # Changed from self.symbol_table.structs to self.struct_types to match existing code
             t = self.struct_types[annotation.type_name]
         else:
             raise VibeLangTypeError(f"Unknown type: {annotation.type_name}", annotation.line, annotation.column)
@@ -273,16 +292,33 @@ class TypeChecker:
     
     def check_assignment(self, node: Assignment):
         """Type check assignment."""
-        target_type = self.check_expression(node.target)
-        value_type = self.check_expression(node.value, expected_type=target_type)
-        
-        if not can_coerce(value_type, target_type):
-            raise VibeLangTypeError(
-                f"Cannot assign {value_type} to {target_type}",
-                node.line, node.column
-            )
-        
-        node.type = target_type
+        if len(node.targets) == 1:
+            target_type = self.check_expression(node.targets[0])
+            value_type = self.check_expression(node.value, expected_type=target_type)
+            
+            if not can_coerce(value_type, target_type):
+                raise VibeLangTypeError(
+                    f"Cannot assign {value_type} to {target_type}",
+                    node.line, node.column
+                )
+            node.type = target_type
+        else:
+            # Destructuring assignment
+            target_types = [self.check_expression(t) for t in node.targets]
+            # Expect value to be MultiType matching targets
+            value_type = self.check_expression(node.value)
+            
+            if not isinstance(value_type, MultiType):
+                 raise VibeLangTypeError(f"Destructuring assignment requires tuple value, got {value_type}", node.line, node.column)
+            
+            if len(value_type.types) != len(target_types):
+                 raise VibeLangTypeError(f"Destructuring mismatch: expected {len(target_types)} values, got {len(value_type.types)}", node.line, node.column)
+            
+            for i, (t_type, v_type) in enumerate(zip(target_types, value_type.types)):
+                if not can_coerce(v_type, t_type):
+                    raise VibeLangTypeError(f"Cannot assign {v_type} to {t_type} (element {i})", node.line, node.column)
+            
+            node.type = value_type
     
     def check_if_statement(self, node: IfStatement):
         """Type check if statement."""
@@ -350,19 +386,30 @@ class TypeChecker:
                 node.line, node.column
             )
         
-        if node.value:
-            return_type = self.check_expression(node.value)
-            if not can_coerce(return_type, self.current_function_return_type):
-                raise VibeLangTypeError(
-                    f"Cannot return {return_type}, expected {self.current_function_return_type}",
-                    node.line, node.column
-                )
-        else:
+        if not node.values:
             if not isinstance(self.current_function_return_type, VoidType):
                 raise VibeLangTypeError(
                     f"Function must return {self.current_function_return_type}",
                     node.line, node.column
                 )
+            return
+
+        if len(node.values) == 1:
+            return_type = self.check_expression(node.values[0])
+            # Handle implicit MultiType construction if function expects MultiType? 
+            # No, if func returns (int, int), return (1, 2) is 2 values, not 1 value that is a tuple, unless we have tuple literals.
+            # But here `node.values` has 2 items.
+            pass
+        else:
+            # Multiple return values
+            return_types = [self.check_expression(v) for v in node.values]
+            return_type = MultiType(return_types)
+        
+        if not can_coerce(return_type, self.current_function_return_type):
+             raise VibeLangTypeError(
+                f"Cannot return {return_type}, expected {self.current_function_return_type}",
+                node.line, node.column
+            )
     
     def check_expression(self, node: ASTNode, expected_type: Optional[Type] = None) -> Type:
         """Type check expression and return its type."""
@@ -570,11 +617,11 @@ class TypeChecker:
             if isinstance(node.function, Identifier) and node.function.name == 'print':
                 continue
             
-            # Special case for len - accept any array type
+            # Special case for len - accept any array type or string
             if isinstance(node.function, Identifier) and node.function.name == 'len':
-                if not isinstance(arg_type, ArrayType):
+                if not isinstance(arg_type, (ArrayType, StringType)):
                     raise VibeLangTypeError(
-                        f"len() requires array type, got {arg_type}",
+                        f"len() requires array or string type, got {arg_type}",
                         node.line, node.column
                     )
                 continue

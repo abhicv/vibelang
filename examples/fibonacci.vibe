@@ -25,7 +25,8 @@ fn main() -> int {
     let n = 10;
     let result = fibonacci(n);
     print("Fibonacci(10) = ");
-    print("55");
+    print(result);
     return 0;
 }
 
+main();

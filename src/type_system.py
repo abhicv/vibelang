@@ -98,6 +98,21 @@ class StructType(Type):
         return self.name
 
 
+@dataclass
+class MultiType(Type):
+    """Multiple return values type."""
+    types: List[Type]
+    
+    def __eq__(self, other):
+        return isinstance(other, MultiType) and self.types == other.types
+    
+    def __hash__(self):
+        return hash(('multi', tuple(self.types)))
+    
+    def __str__(self):
+        return f"({', '.join(str(t) for t in self.types)})"
+
+
 class VoidType(Type):
     """Void type (for functions that don't return a value)."""
     def __str__(self):
@@ -123,8 +138,12 @@ def type_from_annotation(annotation) -> Type:
     elif annotation.type_name == 'array':
         element_type = type_from_annotation(annotation.element_type)
         return ArrayType(element_type)
+    elif annotation.type_name == 'tuple':
+        types = [type_from_annotation(t) for t in annotation.types]
+        return MultiType(types)
     else:
-        raise ValueError(f"Unknown type: {annotation.type_name}")
+        # Assume struct
+        return StructType(annotation.type_name, {})
 
 
 def is_numeric_type(t: Type) -> bool:
@@ -144,6 +163,12 @@ def can_coerce(from_type: Type, to_type: Type) -> bool:
     # Null can be coerced to array or struct
     if isinstance(from_type, NullType) and (isinstance(to_type, ArrayType) or isinstance(to_type, StructType)):
         return True
+    
+    # MultiType coercion
+    if isinstance(from_type, MultiType) and isinstance(to_type, MultiType):
+        if len(from_type.types) != len(to_type.types):
+            return False
+        return all(can_coerce(f, t) for f, t in zip(from_type.types, to_type.types))
     
     return False
 

@@ -1,0 +1,37 @@
+import "../src/lib/strings";
+
+fn main() -> int {
+    let s = "Hello, VibeLang!";
+    print("Original: " + s);
+    print("Upper: " + to_upper(s));
+    print("Lower: " + to_lower(s));
+    print("Substring (7, 15): " + substring(s, 7, 15));
+    
+    if (contains(s, "Vibe")) {
+        print("Contains 'Vibe': true");
+    } else {
+        print("Contains 'Vibe': false");
+    }
+    
+    if (starts_with(s, "Hello")) {
+        print("Starts with 'Hello': true");
+    } else {
+        print("Starts with 'Hello': false");
+    }
+    
+    if (ends_with(s, "!")) {
+        print("Ends with '!': true");
+    } else {
+        print("Ends with '!': false");
+    }
+    
+    print("Index of 'Vibe':");
+    print(index_of(s, "Vibe"));
+    
+    print("Index of 'Missing':");
+    print(index_of(s, "Missing"));
+
+    return 0;
+}
+
+main();

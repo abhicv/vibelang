@@ -153,11 +153,15 @@ class MethodCall(ASTNode):
 class TypeAnnotation(ASTNode):
     type_name: str
     element_type: Optional['TypeAnnotation'] = None  # For array types
+    types: List['TypeAnnotation'] = None # For multi-value types (tuples)
     
-    def __init__(self, type_name: str, line: int, column: int, element_type: Optional['TypeAnnotation'] = None):
+    def __init__(self, type_name: str, line: int, column: int, 
+                 element_type: Optional['TypeAnnotation'] = None,
+                 types: List['TypeAnnotation'] = None):
         super().__init__(line, column)
         self.type_name = type_name
         self.element_type = element_type
+        self.types = types
 
 
 @dataclass
@@ -206,27 +210,37 @@ class MemberAccess(ASTNode):
 # Statements
 @dataclass
 class VariableDeclaration(ASTNode):
-    name: str
+    names: List[str] # List of names for destructuring
     type_annotation: Optional[TypeAnnotation]
     initializer: Optional[ASTNode]
     
-    def __init__(self, name: str, type_annotation: Optional[TypeAnnotation], 
+    def __init__(self, names: List[str], type_annotation: Optional[TypeAnnotation], 
                  initializer: Optional[ASTNode], line: int, column: int):
         super().__init__(line, column)
-        self.name = name
+        self.names = names
         self.type_annotation = type_annotation
         self.initializer = initializer
+    
+    @property
+    def name(self) -> str:
+        """Backward compatibility helper."""
+        return self.names[0] if self.names else ""
 
 
 @dataclass
 class Assignment(ASTNode):
-    target: ASTNode  # Identifier or ArrayIndex
+    targets: List[ASTNode]  # List of targets for destructuring
     value: ASTNode
     
-    def __init__(self, target: ASTNode, value: ASTNode, line: int, column: int):
+    def __init__(self, targets: List[ASTNode], value: ASTNode, line: int, column: int):
         super().__init__(line, column)
-        self.target = target
+        self.targets = targets
         self.value = value
+        
+    @property
+    def target(self) -> ASTNode:
+        """Backward compatibility helper."""
+        return self.targets[0] if self.targets else None
 
 
 @dataclass
@@ -269,11 +283,22 @@ class ForStatement(ASTNode):
 
 @dataclass
 class ReturnStatement(ASTNode):
-    value: Optional[ASTNode]
+    values: List[ASTNode] # List of return values
     
-    def __init__(self, value: Optional[ASTNode], line: int, column: int):
+    def __init__(self, values: List[ASTNode], line: int, column: int):
         super().__init__(line, column)
-        self.value = value
+        self.values = values
+        
+    @property
+    def value(self) -> Optional[ASTNode]:
+        """Backward compatibility helper."""
+        if not self.values:
+            return None
+        if len(self.values) == 1:
+            return self.values[0]
+        # Return none if multiple values to force update, or just return first?
+        # Better to return first to avoid breaking single-value logic that expects a node
+        return self.values[0]
 
 
 @dataclass

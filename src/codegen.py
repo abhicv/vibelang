@@ -45,7 +45,8 @@ class CodeGenerator:
                 self.generate_statement(statement)
         
         # Add halt instruction
-        self.bytecode.add_instruction(OpCode.RETURN)
+        self.bytecode.add_instruction(OpCode.LOAD_CONST, self.bytecode.add_constant(0))
+        self.bytecode.add_instruction(OpCode.RETURN, 1)
         
         # Final pass: Patch function calls
         for instr_idx, func_name in self.function_fixups:
@@ -79,28 +80,35 @@ class CodeGenerator:
             pass
         elif isinstance(node, ExpressionStatement):
             self.generate_expression(node.expression)
-            # Pop result if not used
-            if not isinstance(node.expression, Assignment):
-                self.bytecode.add_instruction(OpCode.POP)
+            # Pop result - every expression statement result should be removed from stack
+            self.bytecode.add_instruction(OpCode.POP)
         else:
             raise CodeGenError(f"Unknown statement type: {type(node).__name__}", node.line, node.column)
     
     def generate_variable_declaration(self, node: VariableDeclaration):
         """Generate code for variable declaration."""
-        # Allocate variable index
-        var_index = self.var_counter
-        self.variables[node.name] = var_index
-        self.var_counter += 1
+        var_indices = []
+        for name in node.names:
+            var_index = self.var_counter
+            self.variables[name] = var_index
+            self.var_counter += 1
+            var_indices.append(var_index)
         
-        # Generate initializer if present
         if node.initializer:
             self.generate_expression(node.initializer)
-            self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
+            if len(node.names) > 1:
+                # Unpack multiple values
+                self.bytecode.add_instruction(OpCode.UNPACK, len(node.names))
+            
+            # Store variables (stack top is first variable)
+            for var_index in var_indices:
+                self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
         else:
-            # Initialize with default value
+            # Initialize with 0/default
             const_index = self.bytecode.add_constant(0)
-            self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
-            self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
+            for var_index in var_indices:
+                self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
+                self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
     
     def generate_function_declaration(self, node: FunctionDeclaration):
         """Generate code for function declaration."""
@@ -148,7 +156,7 @@ class CodeGenerator:
                 const_index = self.bytecode.add_constant(0)
             
             self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
-            self.bytecode.add_instruction(OpCode.RETURN)
+            self.bytecode.add_instruction(OpCode.RETURN, 1)
         
         # Patch jump to skip over function
         after_func = self.bytecode.current_index()
@@ -160,23 +168,37 @@ class CodeGenerator:
     
     def generate_assignment(self, node: Assignment):
         """Generate code for assignment."""
-        if isinstance(node.target, Identifier):
-            # Simple variable assignment
-            self.generate_expression(node.value)
-            var_index = self.variables.get(node.target.name)
-            if var_index is None:
-                raise CodeGenError(f"Undefined variable: {node.target.name}", node.line, node.column)
-            self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
-        
-        elif isinstance(node.target, ArrayIndex):
-            # Array element assignment
-            self.generate_expression(node.target.array)
-            self.generate_expression(node.target.index)
-            self.generate_expression(node.value)
-            self.bytecode.add_instruction(OpCode.INDEX_STORE)
-        
+        if len(node.targets) == 1:
+            target = node.targets[0]
+            if isinstance(target, Identifier):
+                # Simple variable assignment
+                self.generate_expression(node.value)
+                var_index = self.variables.get(target.name)
+                if var_index is None:
+                    raise CodeGenError(f"Undefined variable: {target.name}", node.line, node.column)
+                self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
+            
+            elif isinstance(target, ArrayIndex):
+                # Array element assignment
+                self.generate_expression(target.array)
+                self.generate_expression(target.index)
+                self.generate_expression(node.value)
+                self.bytecode.add_instruction(OpCode.INDEX_STORE)
+            else:
+                raise CodeGenError(f"Invalid assignment target: {type(target).__name__}", node.line, node.column)
         else:
-            raise CodeGenError(f"Invalid assignment target: {type(node.target).__name__}", node.line, node.column)
+            # Destructuring assignment
+            self.generate_expression(node.value)
+            self.bytecode.add_instruction(OpCode.UNPACK, len(node.targets))
+            
+            for target in node.targets:
+                if isinstance(target, Identifier):
+                    var_index = self.variables.get(target.name)
+                    if var_index is None:
+                        raise CodeGenError(f"Undefined variable: {target.name}", node.line, node.column)
+                    self.bytecode.add_instruction(OpCode.STORE_VAR, var_index)
+                else:
+                    raise CodeGenError("Destructuring only supported for simple variables", node.line, node.column)
     
     def generate_if_statement(self, node: IfStatement):
         """Generate code for if statement."""
@@ -294,14 +316,15 @@ class CodeGenerator:
     
     def generate_return_statement(self, node: ReturnStatement):
         """Generate code for return statement."""
-        if node.value:
-            self.generate_expression(node.value)
+        if node.values:
+            for val in node.values:
+                self.generate_expression(val)
+            self.bytecode.add_instruction(OpCode.RETURN, len(node.values))
         else:
             # Return void/default value
             const_index = self.bytecode.add_constant(0)
             self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
-        
-        self.bytecode.add_instruction(OpCode.RETURN)
+            self.bytecode.add_instruction(OpCode.RETURN, 1) # Treat void as returning 1 value (0/None) for now to satisfy stack pops, OR use 0?
     
     def generate_expression(self, node: ASTNode):
         """Generate code for expression."""
@@ -318,12 +341,12 @@ class CodeGenerator:
             self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
         
         elif isinstance(node, BoolLiteral):
-            self.bytecode.add_constant(node.value)
-            self.bytecode.add_instruction(OpCode.LOAD_CONST, len(self.bytecode.constants) - 1)
+            const_index = self.bytecode.add_constant(node.value)
+            self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
         
         elif isinstance(node, NullLiteral):
-            self.bytecode.add_constant(None)
-            self.bytecode.add_instruction(OpCode.LOAD_CONST, len(self.bytecode.constants) - 1)
+            const_index = self.bytecode.add_constant(None)
+            self.bytecode.add_instruction(OpCode.LOAD_CONST, const_index)
         elif isinstance(node, ArrayLiteral):
             # Push all elements onto stack
             for elem in node.elements:
@@ -434,6 +457,21 @@ class CodeGenerator:
                 if node.arguments:
                     self.generate_expression(node.arguments[0])
                 self.bytecode.add_instruction(OpCode.LEN)
+                return
+            
+            elif func_name == 'ord':
+                self.generate_expression(node.arguments[0])
+                self.bytecode.add_instruction(OpCode.ORD)
+                return
+            
+            elif func_name == 'chr':
+                self.generate_expression(node.arguments[0])
+                self.bytecode.add_instruction(OpCode.CHR)
+                return
+            
+            elif func_name == 'str':
+                self.generate_expression(node.arguments[0])
+                self.bytecode.add_instruction(OpCode.STR)
                 return
         
         # User-defined function

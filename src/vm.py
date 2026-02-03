@@ -20,16 +20,16 @@ class VibeLangVM:
         self.ip = 0  # Instruction pointer
         self.call_stack: List[Dict] = []  # Call frames
     
-    def run(self) -> Any:
-        """Execute bytecode and return result."""
+    def run(self):
+        """Run the bytecode."""
         while self.ip < len(self.bytecode.instructions):
             instruction = self.bytecode.instructions[self.ip]
+            self.ip += 1
             
             if self.debug:
-                print(f"IP: {self.ip:4d} | Stack: {self.stack} | {instruction}")
+                print(f"IP: {self.ip-1:4d} | Stack: {self.stack} | {instruction}")
             
             self.execute_instruction(instruction)
-            self.ip += 1
         
         # Return top of stack if available
         if self.stack:
@@ -65,10 +65,10 @@ class VibeLangVM:
         elif opcode == OpCode.ADD:
             right = self.stack.pop()
             left = self.stack.pop()
-            if isinstance(left, str) and isinstance(right, str):
+            try:
                 self.stack.append(left + right)
-            else:
-                self.stack.append(left + right)
+            except TypeError:
+                raise VibeRuntimeError(f"Cannot add {type(left).__name__} and {type(right).__name__}")
         
         elif opcode == OpCode.SUB:
             right = self.stack.pop()
@@ -148,41 +148,53 @@ class VibeLangVM:
         
         # Control flow
         elif opcode == OpCode.JUMP:
-            self.ip = operand - 1  # -1 because ip will be incremented
+            self.ip = operand
         
         elif opcode == OpCode.JUMP_IF_FALSE:
             condition = self.stack.pop()
             if not condition:
-                self.ip = operand - 1
+                self.ip = operand
         
         elif opcode == OpCode.JUMP_IF_TRUE:
             condition = self.stack.pop()
             if condition:
-                self.ip = operand - 1
+                self.ip = operand
         
         # Function operations
         elif opcode == OpCode.CALL:
             # Save current state
             frame = {
                 'return_address': self.ip,
-                'variables': self.variables.copy()
+                'variables': self.variables
             }
             self.call_stack.append(frame)
             
+            # Start fresh with local variables for the function
+            self.variables = {}
+            
             # Jump to function
-            self.ip = operand - 1
+            self.ip = operand
         
         elif opcode == OpCode.RETURN:
+            # Pop return value(s)
+            value = None
+            if operand == 1:
+                value = self.stack.pop()
+            elif operand > 1:
+                value = []
+                for _ in range(operand):
+                    value.append(self.stack.pop())
+                value.reverse() # Elements were popped in reverse order
+            
             if self.call_stack:
                 # Restore previous state
                 frame = self.call_stack.pop()
-                return_value = self.stack.pop() if self.stack else None
                 self.ip = frame['return_address']
                 self.variables = frame['variables']
                 
-                # Push return value
-                if return_value is not None:
-                    self.stack.append(return_value)
+                # Push return value (single value or list of values)
+                if operand > 0:
+                    self.stack.append(value)
             else:
                 # Return from main program
                 self.ip = len(self.bytecode.instructions)
@@ -195,10 +207,22 @@ class VibeLangVM:
             self.stack.append(None)
         
         elif opcode == OpCode.LEN:
-            array = self.stack.pop()
-            if not isinstance(array, list):
-                raise VibeRuntimeError(f"len() requires array, got {type(array).__name__}")
-            self.stack.append(len(array))
+            container = self.stack.pop()
+            if not isinstance(container, (list, str)):
+                raise VibeRuntimeError(f"len() requires array or string, got {type(container).__name__}")
+            self.stack.append(len(container))
+            
+        elif opcode == OpCode.ORD:
+            char = self.stack.pop()
+            self.stack.append(ord(char))
+            
+        elif opcode == OpCode.CHR:
+            code = self.stack.pop()
+            self.stack.append(chr(code))
+            
+        elif opcode == OpCode.STR:
+            char = self.stack.pop()
+            self.stack.append(str(char))
         
         # Array operations
         elif opcode == OpCode.BUILD_ARRAY:
@@ -210,16 +234,16 @@ class VibeLangVM:
         
         elif opcode == OpCode.INDEX_LOAD:
             index = self.stack.pop()
-            array = self.stack.pop()
+            container = self.stack.pop()
             
-            if not isinstance(array, list):
-                raise VibeRuntimeError(f"Cannot index non-array type: {type(array).__name__}")
+            if not isinstance(container, (list, str)):
+                raise VibeRuntimeError(f"Cannot index type: {type(container).__name__}")
             if not isinstance(index, int):
-                raise VibeRuntimeError(f"Array index must be int, got {type(index).__name__}")
-            if index < 0 or index >= len(array):
-                raise VibeRuntimeError(f"Array index out of bounds: {index}")
+                raise VibeRuntimeError(f"Index must be int, got {type(index).__name__}")
+            if index < 0 or index >= len(container):
+                raise VibeRuntimeError(f"Index out of bounds: {index}")
             
-            self.stack.append(array[index])
+            self.stack.append(container[index])
         
         elif opcode == OpCode.INDEX_STORE:
             value = self.stack.pop()
@@ -253,6 +277,17 @@ class VibeLangVM:
                 raise VibeRuntimeError("pop() from empty array")
             value = array.pop()
             self.stack.append(value)
+        
+        elif opcode == OpCode.UNPACK:
+            count = operand
+            container = self.stack.pop()
+            if not isinstance(container, list):
+                 raise VibeRuntimeError(f"UNPACK requires array/list, got {type(container).__name__}")
+            if len(container) != count:
+                raise VibeRuntimeError(f"UNPACK mismatch: expected {count}, got {len(container)}")
+            # Push elements onto stack in reverse order so they are popped in original order
+            for item in reversed(container):
+                self.stack.append(item)
         
         else:
             raise VibeRuntimeError(f"Unknown opcode: {opcode}")

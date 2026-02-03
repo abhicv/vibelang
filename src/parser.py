@@ -101,10 +101,17 @@ class Parser:
         return Import(path_token.value, import_token.line, import_token.column)
     
     def parse_variable_declaration(self) -> VariableDeclaration:
-        """Parse: let name: type = value;"""
+        """Parse: let name1, name2: type = value;"""
         let_token = self.expect(TokenType.LET)
-        name_token = self.expect(TokenType.IDENTIFIER)
-        name = name_token.value
+        
+        names = []
+        while True:
+            name_token = self.expect(TokenType.IDENTIFIER)
+            names.append(name_token.value)
+            if self.match(TokenType.COMMA):
+                self.advance()
+            else:
+                break
         
         type_annotation = None
         if self.match(TokenType.COLON):
@@ -118,7 +125,7 @@ class Parser:
         
         self.expect(TokenType.SEMICOLON)
         
-        return VariableDeclaration(name, type_annotation, initializer, let_token.line, let_token.column)
+        return VariableDeclaration(names, type_annotation, initializer, let_token.line, let_token.column)
     
     def parse_function_declaration(self) -> FunctionDeclaration:
         """Parse: fn name(params) -> return_type { body }"""
@@ -202,6 +209,18 @@ class Parser:
             element_type = self.parse_type_annotation()
             self.expect(TokenType.RBRACKET)
             return TypeAnnotation('array', token.line, token.column, element_type)
+        elif self.match(TokenType.LPAREN):
+            # Tuple type: (int, string)
+            self.advance()
+            types = []
+            while True:
+                types.append(self.parse_type_annotation())
+                if self.match(TokenType.COMMA):
+                    self.advance()
+                else:
+                    break
+            self.expect(TokenType.RPAREN)
+            return TypeAnnotation('tuple', token.line, token.column, types=types)
         elif self.match(TokenType.IDENTIFIER):
             # Custom struct type
             self.advance()
@@ -210,15 +229,20 @@ class Parser:
             raise ParserError(f"Expected type annotation, got {token.type.name}", token.line, token.column)
     
     def parse_return_statement(self) -> ReturnStatement:
-        """Parse: return expr;"""
+        """Parse: return expr1, expr2;"""
         return_token = self.expect(TokenType.RETURN)
         
-        value = None
+        values = []
         if not self.match(TokenType.SEMICOLON):
-            value = self.parse_expression()
+            while True:
+                values.append(self.parse_expression())
+                if self.match(TokenType.COMMA):
+                    self.advance()
+                else:
+                    break
         
         self.expect(TokenType.SEMICOLON)
-        return ReturnStatement(value, return_token.line, return_token.column)
+        return ReturnStatement(values, return_token.line, return_token.column)
     
     def parse_if_statement(self) -> IfStatement:
         """Parse: if condition { block } else { block }"""
@@ -271,20 +295,28 @@ class Parser:
     
     def parse_expression_statement(self) -> ExpressionStatement:
         """Parse expression statement or assignment."""
-        expr = self.parse_expression()
+        exprs = [self.parse_expression()]
         
+        # Check for comma-separated targets (destructuring assignment)
+        while self.match(TokenType.COMMA):
+            self.advance()
+            exprs.append(self.parse_expression())
+
         # Check for assignment
         if self.match(TokenType.ASSIGN):
             self.advance()
             value = self.parse_expression()
             self.expect(TokenType.SEMICOLON)
             return ExpressionStatement(
-                Assignment(expr, value, expr.line, expr.column),
-                expr.line, expr.column
+                Assignment(exprs, value, exprs[0].line, exprs[0].column),
+                exprs[0].line, exprs[0].column
             )
         
+        if len(exprs) > 1:
+             raise ParserError("Expected assignment after multiple expressions", exprs[0].line, exprs[0].column)
+
         self.expect(TokenType.SEMICOLON)
-        return ExpressionStatement(expr, expr.line, expr.column)
+        return ExpressionStatement(exprs[0], exprs[0].line, exprs[0].column)
     
     def parse_expression(self) -> ASTNode:
         """Parse expression (lowest precedence)."""

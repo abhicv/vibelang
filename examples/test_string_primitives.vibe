@@ -1,0 +1,24 @@
+fn main() -> int {
+    let s = "Vibe";
+    print("String: " + s);
+    print("Length:");
+    print(len(s));
+    
+    print("Index 0:");
+    print(str(s[0]));
+    
+    print("ord('V'):");
+    print(ord(s[0]));
+    
+    print("chr(86):");
+    print(str(chr(86)));
+    
+    // Test char to string conversion
+    let c = s[1];
+    let cs = str(c);
+    print("str(s[1]): " + cs);
+    
+    return 0;
+}
+
+main();

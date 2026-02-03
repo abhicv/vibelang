@@ -50,6 +50,9 @@ class OpCode(Enum):
     # Built-in functions
     PRINT = auto()
     LEN = auto()
+    ORD = auto()
+    CHR = auto()
+    STR = auto()
     
     # Array operations
     BUILD_ARRAY = auto()     # Build array from stack values
@@ -57,6 +60,7 @@ class OpCode(Enum):
     INDEX_STORE = auto()     # Store array element
     ARRAY_PUSH = auto()      # Push element to array
     ARRAY_POP = auto()       # Pop element from array
+    UNPACK = auto()          # Unpack array/tuple onto stack
 
 
 @dataclass
@@ -80,14 +84,14 @@ class Bytecode:
     
     def add_instruction(self, opcode: OpCode, operand: Any = None) -> int:
         """Add instruction and return its index."""
-        idx = len(self.instructions)
         self.instructions.append(Instruction(opcode, operand))
-        return idx
+        return len(self.instructions) - 1
     
     def add_constant(self, value: Any) -> int:
         """Add constant to pool and return its index."""
-        if value in self.constants:
-            return self.constants.index(value)
+        for i, const in enumerate(self.constants):
+            if type(const) == type(value) and const == value:
+                return i
         idx = len(self.constants)
         self.constants.append(value)
         return idx

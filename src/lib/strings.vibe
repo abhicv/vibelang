@@ -1,0 +1,118 @@
+
+fn to_upper(s: string) -> string {
+    let result = "";
+    let i = 0;
+    while (i < len(s)) {
+        let c = s[i];
+        let code = ord(c);
+        if (code >= 97 and code <= 122) {
+            result = result + str(chr(code - 32));
+        } else {
+            result = result + str(c);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+fn to_lower(s: string) -> string {
+    let result = "";
+    let i = 0;
+    while (i < len(s)) {
+        let c = s[i];
+        let code = ord(c);
+        if (code >= 65 and code <= 90) {
+            result = result + str(chr(code + 32));
+        } else {
+            result = result + str(c);
+        }
+        i = i + 1;
+    }
+    return result;
+}
+
+fn substring(s: string, start: int, end: int) -> string {
+    if (start < 0) {
+        start = 0;
+    }
+    if (end > len(s)) {
+        end = len(s);
+    }
+    if (start >= end) {
+        return "";
+    }
+    
+    let result = "";
+    let i = start;
+    while (i < end) {
+        result = result + str(s[i]);
+        i = i + 1;
+    }
+    return result;
+}
+
+fn contains(s: string, sub: string) -> bool {
+    return index_of(s, sub) != -1;
+}
+
+fn index_of(s: string, sub: string) -> int {
+
+    if (len(sub) == 0) {
+        return 0;
+    }
+
+    if (len(sub) > len(s)) {
+        return -1;
+    }
+    
+    let i = 0;
+    while (i <= len(s) - len(sub)) {
+        let j = 0;
+        let match = true;
+        while (j < len(sub)) {
+            if (s[i + j] != sub[j]) {
+                match = false;
+                j = len(sub);
+            }
+            j = j + 1;
+        }
+        if (match) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
+}
+
+fn starts_with(s: string, prefix: string) -> bool {
+    if (len(prefix) > len(s)) {
+        return false;
+    }
+    
+    let i = 0;
+    while (i < len(prefix)) {
+        if (s[i] != prefix[i]) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+fn ends_with(s: string, suffix: string) -> bool {
+    if (len(suffix) > len(s)) {
+        return false;
+    }
+    
+    let offset = len(s) - len(suffix);
+    let i = 0;
+    while (i < len(suffix)) {
+        if (s[offset + i] != suffix[i]) {
+            return false;
+        }
+        i = i + 1;
+    }
+    return true;
+}
+
+// Force recompile

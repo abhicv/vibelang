@@ -19,6 +19,8 @@ class CCodeGenerator:
         self.functions: Set[str] = set()
         self.forward_decls: List[str] = []
         self.current_func_return_type: Optional[Type] = None
+        self.required_tuples: Set[str] = set()
+        self.tuple_definitions: Dict[str, List[str]] = {} # name -> [field_types]
     
     def generate(self, program: Program, other_programs: List[Program] = None) -> str:
         """Generate C code for entire program (and imported modules)."""
@@ -35,6 +37,8 @@ class CCodeGenerator:
         for statement in all_statements:
             if isinstance(statement, FunctionDeclaration):
                 self.functions.add(statement.name)
+            # Scan for tuple types
+            self._scan_types(statement)
         
         # Generate header
         self._generate_header()
@@ -62,6 +66,9 @@ class CCodeGenerator:
                 if statement.name not in seen_structs:
                     self._generate_struct_definition(statement)
                     seen_structs.add(statement.name)
+        
+        # Generate tuple structs
+        self._generate_tuple_structs()
         
         self.output.append("")
 
@@ -252,6 +259,21 @@ class CCodeGenerator:
             "    return 0LL;",
             "}",
             "",
+            "long long vibe_ord(char c) {",
+            "    return (long long)c;",
+            "}",
+            "",
+            "char vibe_chr(long long code) {",
+            "    return (char)code;",
+            "}",
+            "",
+            "const char* vibe_str(char c) {",
+            "    char* s = (char*)malloc(2);",
+            "    s[0] = c;",
+            "    s[1] = '\\0';",
+            "    return s;",
+            "}",
+            "",
         ])
     
     def _generate_forward_decl(self, node: FunctionDeclaration):
@@ -284,7 +306,7 @@ class CCodeGenerator:
         self.indent_level += 1
         
         old_return_type = self.current_func_return_type
-        self.current_func_return_type = node.return_type.type
+        self.current_func_return_type = type_from_annotation(node.return_type)
         
         # Generate function body
         for statement in node.body:
@@ -342,6 +364,11 @@ class CCodeGenerator:
                 self._emit(f"{{ {elem_type} _tmp = {val_code}; vibe_array_push({obj_code}, &_tmp); }}")
                 return
 
+            # Check if ExpressionStatement is a Destructuring Assignment
+            if isinstance(node.expression, Assignment) and len(node.expression.targets) > 1:
+                self._generate_destructuring_assignment(node.expression)
+                return
+
             expr_code = self._generate_expression(node.expression)
             self._emit(f"{expr_code};")
         else:
@@ -349,16 +376,41 @@ class CCodeGenerator:
     
     def _generate_variable_decl(self, node: VariableDeclaration):
         """Generate variable declaration."""
-        var_type = self._c_type(node.type_annotation) if node.type_annotation else self._infer_c_type(node.type)
-        
-        if node.initializer:
-            init_code = self._generate_expression(node.initializer)
-            self._emit(f"{var_type} {node.name} = {init_code};")
+        if len(node.names) > 1:
+             # Destructuring
+             struct_type = self._infer_c_type(node.type)
+             
+             if not node.initializer:
+                 raise CodeGenError("Destructuring declaration requires initializer", node.line, node.column)
+                 
+             init_code = self._generate_expression(node.initializer)
+             
+             tmp_var = f"_tuple_tmp_{self.temp_counter}"
+             self.temp_counter += 1
+             
+             self._emit(f"{struct_type} {tmp_var} = {init_code};")
+             
+             for i, name in enumerate(node.names):
+                  # node.type is MultiType
+                  var_c_type = self._infer_c_type(node.type.types[i])
+                  self._emit(f"{var_c_type} {name} = {tmp_var}.v{i};")
         else:
-            self._emit(f"{var_type} {node.name};")
+            # Single variable
+            var_type = self._c_type(node.type_annotation) if node.type_annotation else self._infer_c_type(node.type)
+            
+            if node.initializer:
+                init_code = self._generate_expression(node.initializer)
+                self._emit(f"{var_type} {node.name} = {init_code};")
+            else:
+                self._emit(f"{var_type} {node.name};")
     
     def _generate_assignment(self, node: Assignment):
         """Generate assignment statement."""
+        # Note: Destructuring assignment handles len(targets) > 1 specially in _generate_destructuring_assignment.
+        # This method handles single assignments or cases passed down?
+        # Actually _generate_statement dispatch calls _generate_destructuring_assignment if targets > 1.
+        # But if we call this directly for expression context (unsupported for destructuring), checks remain.
+        
         if isinstance(node.target, Identifier):
             value_code = self._generate_expression(node.value)
             self._emit(f"{node.target.name} = {value_code};")
@@ -381,6 +433,27 @@ class CCodeGenerator:
             self._emit(f"{obj_code}->{node.target.member_name} = {value_code};")
         else:
             raise CodeGenError(f"Invalid assignment target: {type(node.target).__name__}", node.line, node.column)
+
+    def _generate_destructuring_assignment(self, node: Assignment):
+        """Generate destructuring assignment."""
+        struct_type = self._infer_c_type(node.type)
+        
+        value_code = self._generate_expression(node.value)
+        
+        tmp_var = f"_tuple_tmp_{self.temp_counter}"
+        self.temp_counter += 1
+        
+        self._emit(f"{{ {struct_type} {tmp_var} = {value_code};")
+        self.indent_level += 1
+        
+        for i, target in enumerate(node.targets):
+             if isinstance(target, Identifier):
+                 self._emit(f"{target.name} = {tmp_var}.v{i};")
+             else:
+                 raise CodeGenError("Destructuring only supported for simple variables", node.line, node.column)
+        
+        self.indent_level -= 1
+        self._emit("}")
     
     def _generate_if_statement(self, node: IfStatement):
         """Generate if statement."""
@@ -402,6 +475,7 @@ class CCodeGenerator:
             
             self.indent_level -= 1
         
+    
         self._emit("}")
     
     def _generate_while_statement(self, node: WhileStatement):
@@ -442,9 +516,16 @@ class CCodeGenerator:
     
     def _generate_return_statement(self, node: ReturnStatement):
         """Generate return statement."""
-        if node.value:
-            value_code = self._generate_expression(node.value)
-            self._emit(f"return {value_code};")
+        if node.values:
+            if len(node.values) == 1:
+                value_code = self._generate_expression(node.values[0])
+                self._emit(f"return {value_code};")
+            else:
+                # Multiple return values (tuple)
+                struct_type = self._infer_c_type(self.current_func_return_type)
+                values = [self._generate_expression(v) for v in node.values]
+                values_str = ", ".join(values)
+                self._emit(f"return ({struct_type}){{ {values_str} }};")
         else:
             if isinstance(self.current_func_return_type, VoidType):
                 self._emit("return;")
@@ -618,9 +699,24 @@ class CCodeGenerator:
             
             elif func_name == 'len':
                 if node.arguments:
-                    arg_code = self._generate_expression(node.arguments[0])
+                    arg = node.arguments[0]
+                    arg_code = self._generate_expression(arg)
+                    if isinstance(arg.type, StringType):
+                        return f"strlen({arg_code})"
                     return f"vibe_len({arg_code})"
                 return "0"
+            
+            elif func_name == 'ord':
+                arg_code = self._generate_expression(node.arguments[0])
+                return f"vibe_ord({arg_code})"
+            
+            elif func_name == 'chr':
+                arg_code = self._generate_expression(node.arguments[0])
+                return f"vibe_chr({arg_code})"
+            
+            elif func_name == 'str':
+                arg_code = self._generate_expression(node.arguments[0])
+                return f"vibe_str({arg_code})"
             
             elif func_name == 'read_str':
                 return "vibe_read_str()"
@@ -680,6 +776,13 @@ class CCodeGenerator:
             return 'char'
         elif type_annotation.type_name == 'array':
             return 'VArray*'
+        elif type_annotation.type_name == 'tuple':
+             # Resolve element types
+             field_c_types = []
+             if type_annotation.types:
+                 for t in type_annotation.types:
+                     field_c_types.append(self._c_type(t))
+             return self._get_tuple_struct_name(field_c_types)
         elif type_annotation.type_name:
             # Assume it's a struct name
             return f'{type_annotation.type_name}*'
@@ -702,6 +805,9 @@ class CCodeGenerator:
             return 'VArray*'
         elif isinstance(vibe_type, StructType):
             return f'{vibe_type.name}*'
+        elif isinstance(vibe_type, MultiType):
+            field_types = [self._infer_c_type(t) for t in vibe_type.types]
+            return self._get_tuple_struct_name(field_types)
         else:
             return 'void'
     
@@ -755,3 +861,57 @@ class CCodeGenerator:
         """Emit a line of code with proper indentation."""
         indent = "    " * self.indent_level
         self.output.append(indent + code)
+
+    def _get_tuple_struct_name(self, field_types: List[str]) -> str:
+        """Get or create struct name for tuple type."""
+        # Create a canonical name based on types
+        parts = []
+        for t in field_types:
+            clean_t = t.replace(' ', '').replace('*', 'Ptr')
+            parts.append(clean_t)
+        
+        name = f"Tuple_{'_'.join(parts)}"
+        
+        if name not in self.required_tuples:
+            self.required_tuples.add(name)
+            self.tuple_definitions[name] = field_types
+            
+        return name
+
+    def _generate_tuple_structs(self):
+        """Generate C structs for collected tuple types."""
+        if not self.required_tuples:
+            return
+            
+        self.output.append("// Tuple structs")
+        for name in sorted(self.required_tuples):
+            field_types = self.tuple_definitions[name]
+            self.output.append(f"typedef struct {{")
+            self.indent_level += 1
+            for i, f_type in enumerate(field_types):
+                self._emit(f"{f_type} v{i};")
+            self.indent_level -= 1
+            self.output.append(f"}} {name};")
+            self.output.append("")
+
+    def _scan_types(self, node: ASTNode):
+        """Recursively scan for tuple types."""
+        if isinstance(node, FunctionDeclaration):
+            if node.return_type:
+                self._c_type(node.return_type) # Side effect: registers tuple
+            for param in node.parameters:
+                if param.type_annotation:
+                    self._c_type(param.type_annotation)
+            for stmt in node.body:
+                self._scan_types(stmt)
+                
+        elif isinstance(node, VariableDeclaration):
+            if node.type_annotation:
+                self._c_type(node.type_annotation)
+        
+        elif isinstance(node, StructDefinition):
+            for field in node.fields:
+                self._c_type(field.type)
+                
+        # We don't need to scan expressions deeply unless they contain casts or definitions,
+        # but type annotations usually appear in declarations.

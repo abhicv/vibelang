@@ -1,0 +1,79 @@
+struct Node {
+    value: int,
+    next: Node,
+}
+
+struct List {
+    head: Node,
+}
+
+fn create_list() -> List {
+    return List {
+        head: null,
+    };
+}
+
+fn push_front(list: List, val: int) -> void {
+    let new_node = Node {
+        value: val,
+        next: list.head,
+    };
+    list.head = new_node;
+}
+
+fn push_back(list: List, val: int) -> void {
+    let new_node = Node {
+        value: val,
+        next: null,
+    };
+    
+    if list.head == null {
+        list.head = new_node;
+        return;
+    }
+    
+    let current = list.head;
+    while current.next != null {
+        current = current.next;
+    }
+    current.next = new_node;
+}
+
+fn print_list(list: List) -> void {
+    let current = list.head;
+    print("List contents:");
+    while current != null {
+        print(current.value);
+        current = current.next;
+    }
+}
+
+fn get_length(list: List) -> int {
+    let length = 0;
+    let current = list.head;
+    while current != null {
+        length = length + 1;
+        current = current.next;
+    }
+    return length;
+}
+
+fn main() -> int {
+    let list = create_list();
+    
+    print("Pushing nodes: 10, 20 to front, 30, 40 to back");
+    push_front(list, 20);
+    push_front(list, 10);
+    push_back(list, 30);
+    push_back(list, 40);
+    
+    print_list(list);
+    
+    let len = get_length(list);
+    print("Length of list:");
+    print(len);
+    
+    return 0;
+}
+
+main();
